@@ -448,7 +448,7 @@ check_firewall() {
         iptables -I INPUT -p udp --dport ${port} -j ACCEPT
         echo -e "${SUCCESS} iptables 端口开放完成！"
         
-    # 保存 iptables 规则
+	# 保存 iptables 规则
         if [[ ${OS_TYPE} == "centos" ]]; then
             # 修复 CentOS7+ 中 service iptables save 报错的问题
             if [[ -d "/etc/sysconfig" ]]; then
@@ -459,6 +459,7 @@ check_firewall() {
         else
             iptables-save > /etc/iptables.rules
         fi
+    fi
 }
 
 # 生成随机端口
@@ -529,9 +530,9 @@ set_password() {
                 done
                 SS_PASSWORD="${raw_key}"
                 ;;
-            *)
-                # 其他加密方式使用16字节密钥
-                SS_PASSWORD=$(dd if=/dev/urandom bs=16 count=1 2>/dev/null | base64)
+				*)
+                # 其他加密方式使用8个字符（字节）密钥，仅包含大小写字母和数字，无特殊符号
+                SS_PASSWORD=$(head -c 100 /dev/urandom | LC_ALL=C tr -dc 'a-zA-Z0-9' | head -c 8)
                 ;;
         esac
     fi
@@ -615,10 +616,10 @@ set_tfo() {
  ${Green_font_prefix}1.${Font_color_suffix} 启用
  ${Green_font_prefix}2.${Font_color_suffix} 禁用
 =================================="
-    read -e -p "(默认：1)：" tfo_choice
-    [[ -z "${tfo_choice}" ]] && tfo_choice="1"
+    read -e -p "(默认：2)：" tfo_choice
+    [[ -z "${tfo_choice}" ]] && tfo_choice="2"
     
-    if [[ ${tfo_choice} == "1" ]]; then
+    if [[ ${tfo_choice} == "2" ]]; then
         SS_TFO="true"
     else
         SS_TFO="false"
@@ -1052,7 +1053,7 @@ Update_Shell() {
     
     # 下载最新版本进行版本对比
     local temp_file="/tmp/ss-2022.sh"
-    if ! wget --no-check-certificate -O ${temp_file} "https://raw.githubusercontent.com/jinqians/ss-2022.sh/refs/heads/main/ss-2022.sh"; then
+    if ! wget --no-check-certificate -O ${temp_file} "https://raw.githubusercontent.com/DWI589/ss-2022.sh/main/ss-2022.sh"; then
         echo -e "${Error} 下载最新脚本失败！"
         rm -f ${temp_file}
         return 1
