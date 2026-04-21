@@ -103,7 +103,7 @@ detect_arch() {
         "Linux")
             case "${arch}" in
                 "x86_64")
-                    OS_ARCH="x86_64-unknown-linux-gnu"
+                    OS_ARCH="x86_64-unknown-linux-musl"
                     ;;
                 "aarch64")
                     OS_ARCH="aarch64-unknown-linux-gnu"
@@ -747,13 +747,13 @@ Install() {
     echo -e "${Info} 开始安装系统服务..."
     install_service
 
-    echo -e "${Info} 创建命令快捷方式..."
-    curl -L -s ss.jinqians.com -o "/usr/local/bin/ss-2022.sh"
-    chmod +x "/usr/local/bin/ss-2022.sh"
+	echo -e "${Info} 创建命令快捷方式..."
+    cp -f "$0" "/usr/local/bin/ss-2022.sh" || true
+    chmod +x "/usr/local/bin/ss-2022.sh" || true
     if [ -f "/usr/local/bin/ssrust" ]; then
-        rm -f "/usr/local/bin/ssrust"
+        rm -f "/usr/local/bin/ssrust" || true
     fi
-    ln -s "/usr/local/bin/ss-2022.sh" "/usr/local/bin/ssrust"
+    ln -s "/usr/local/bin/ss-2022.sh" "/usr/local/bin/ssrust" || true
     
     echo -e "${Info} 所有步骤安装完毕，开始启动服务..."
     start_service
