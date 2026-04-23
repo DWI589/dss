@@ -44,8 +44,8 @@ install_socks5() {
         exit 1
     fi
 
-# Xray 安装 v1.8.24
-XRAY_VERSION="v1.8.24"
+# Xray 安装 v1.8.10
+XRAY_VERSION="v1.8.10"
 XRAY_FILE="Xray-linux-64.zip"
 XRAY_PATH="/root/${XRAY_FILE}"
 
