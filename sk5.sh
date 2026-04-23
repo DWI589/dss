@@ -90,7 +90,7 @@ install_socks5() {
     # 循环为每个IP分配端口并配置Xray
     for ((i = 0; i < ${#ips[@]}; i++)); do
         # 生成 10000-60000 之间的随机端口
-        current_port=$(shuf -i 10000-60000 -n 1)
+        current_port=$(shuf -i 10666-38888 -n 1)
         generated_ports+=($current_port)
 
         # 追加配置到 serve.toml 文件
