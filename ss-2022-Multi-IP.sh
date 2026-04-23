@@ -756,7 +756,7 @@ EOF
     # 6. 循环部署
     for IP in $IPS; do
         # 生成随机端口
-        RANDOM_PORT=$(shuf -i 10000-65535 -n 1)
+        RANDOM_PORT=$(shuf -i 10666-38888 -n 1)
         # 生成随机密码
         PASSWORD=$(head -c 100 /dev/urandom | LC_ALL=C tr -dc 'a-zA-Z0-9' | head -c 8)
         
