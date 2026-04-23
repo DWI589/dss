@@ -495,7 +495,7 @@ set_method() {
 set_tfo() {
     read -e -p "是否启用 TFO ？\n 1. 启用\n 2. 禁用 (默认)：" tfo_choice
     [[ -z "${tfo_choice}" ]] && tfo_choice="2"
-    if [[ ${tfo_choice} == "2" ]]; then SS_TFO="true"; else SS_TFO="false"; fi
+    if [[ ${tfo_choice} == "1" ]]; then SS_TFO="true"; else SS_TFO="false"; fi
 }
 
 # 设置 DNS
@@ -633,16 +633,36 @@ View() {
     check_installed_status
     getipv4
     getipv6
-    
-    if [[ -f "${CONFIG_PATH}" ]]; then
+
+    echo -e " =============================="
+
+    # 🟢 多IP模式判断
+    if [[ -f "/root/nodes_info.txt" ]]; then
+        echo -e " 当前模式：多IP节点"
+        echo -e " 节点列表（IP/端口/加密/密码）："
+        echo -e " ------------------------------"
+        cat /root/nodes_info.txt
+        echo -e " ------------------------------"
+
+    # 🟢 单IP模式
+    elif [[ -f "${CONFIG_PATH}" ]]; then
+        echo -e " 当前模式：单IP节点"
+
         local config_port=$(jq -r '.server_port' "${CONFIG_PATH}")
         local config_password=$(jq -r '.password' "${CONFIG_PATH}")
         local config_method=$(jq -r '.method' "${CONFIG_PATH}")
-        echo -e " 主IP配置查看（多IP节点请查看 /root/nodes_info.txt）"
-        echo -e " 端口：${config_port} | 密码：${config_password} | 加密：${config_method}"
+
+        echo -e " 节点信息（IP/端口/加密/密码）："
+        echo -e " ${ipv4}/${config_port}/${config_method}/${config_password}"
+
+        # IPv6 可选显示
+        [[ -n "${ipv6}" ]] && echo -e " [${ipv6}]:${config_port}:${config_method}:${config_password}"
+
     else
-        echo -e "${Error} 单实例配置文件不存在（可能已切换为多IP模式）！"
+        echo -e "${Error} 未检测到任何配置（单IP / 多IP 都不存在）！"
     fi
+
+    echo -e " =============================="
 }
 
 # 查看运行状态
@@ -744,6 +764,7 @@ EOF
         cat > /etc/ss-rust/configs/${IP}.json << EOF
 {
     "server": "${IP}",
+    "outbound_bind_addr": "${IP}",
     "server_port": ${PORT},
     "password": "${PASSWORD}",
     "method": "${MULTI_METHOD}",
@@ -779,11 +800,18 @@ EOF
         elif command -v service >/dev/null 2>&1; then service iptables save >/dev/null 2>&1; fi
     fi
 
-    echo -e "================================================="
+	echo -e "================================================="
     echo -e "${SUCCESS} 站群多 IP 批量部署圆满完成！"
-    echo -e "${INFO} 所有节点连接明细已保存至表格：${Green_font_prefix}${OUTPUT_FILE}${Font_color_suffix}"
-    echo -e "${Tip} 重要提示：请务必去【云服务器厂商网页控制台】的安全组中，放行端口范围 [ ${START_PORT} - ${END_PORT} ]"
+    echo -e "${INFO} 所有节点的连接明细已保存至文本：${Green_font_prefix}${OUTPUT_FILE}${Font_color_suffix}"
+    echo -e "${Tip} 重要提示：请务必去云服务器安全组/防火墙中放行端口范围 [ ${START_PORT} - $((PORT-1)) ]"
     echo -e "================================================="
+    
+    # === 新增的输出节点信息代码 开始 ===
+    echo -e "\n${INFO} 部署生成的节点信息如下："
+    cat "$OUTPUT_FILE"
+    echo -e "\n================================================="
+    # === 新增的输出节点信息代码 结束 ===
+    
     Before_Start_Menu
 }
 
