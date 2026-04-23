@@ -44,28 +44,48 @@ install_socks5() {
         exit 1
     fi
 
-    # Xray 安装
-    if [ ! -f "/root/Xray-linux-64.zip" ]; then
-        wget -O /root/Xray-linux-64.zip https://github.com/XTLS/Xray-core/releases/download/v1.6.1/Xray-linux-64.zip || { echo "下载失败"; exit 1; }
-    else
-        echo "/root 目录下已有 Xray-linux-64.zip，跳过下载步骤"
-    fi
+# Xray 安装
+XRAY_VERSION="v1.8.10"
+XRAY_FILE="Xray-linux-64.zip"
+XRAY_PATH="/root/${XRAY_FILE}"
 
-    # 创建 Xray 目录（如果不存在）
-    if [ ! -d "/root/e1" ]; then
-        mkdir -p /root/e1 || { echo "创建目录 /root/e1 失败"; exit 1; }
-    fi
+if [ ! -f "${XRAY_PATH}" ]; then
+    echo "开始下载 Xray ${XRAY_VERSION}..."
 
-    # 解压文件到 /root/e1 目录
-    sudo unzip -o /root/Xray-linux-64.zip -d /root/e1/ >/dev/null 2>&1 || { echo "解压失败"; exit 1; }
+    URL1="https://github.com/XTLS/Xray-core/releases/download/${XRAY_VERSION}/${XRAY_FILE}"
+    URL2="https://ghproxy.com/${URL1}"
 
-    # 检查是否解压成功
-    if [ -f "/root/e1/xray" ]; then
-        echo "解压成功，文件存在"
-    else
-        echo "解压失败或文件不存在"
-        exit 1
-    fi
+    wget -c -O "${XRAY_PATH}" "$URL1" \
+    || wget -c -O "${XRAY_PATH}" "$URL2" \
+    || { echo "所有下载源失败"; exit 1; }
+
+else
+    echo "/root 目录下已有 ${XRAY_FILE}，跳过下载步骤"
+fi
+
+# 校验文件是否正常
+if [ ! -s "${XRAY_PATH}" ]; then
+    echo "文件为空或损坏，删除重试"
+    rm -f "${XRAY_PATH}"
+    exit 1
+fi
+
+# 创建 Xray 目录（如果不存在）
+if [ ! -d "/root/e1" ]; then
+    mkdir -p /root/e1 || { echo "创建目录 /root/e1 失败"; exit 1; }
+fi
+
+# 解压文件到 /root/e1 目录
+unzip -o "${XRAY_PATH}" -d /root/e1/ >/dev/null 2>&1 \
+|| { echo "解压失败"; exit 1; }
+
+# 检查是否解压成功
+if [ -f "/root/e1/xray" ]; then
+    echo "解压成功，文件存在"
+else
+    echo "解压失败或文件不存在"
+    exit 1
+fi
 
     # 设置 xray 文件的可执行权限
     chmod +x /root/e1/xray
