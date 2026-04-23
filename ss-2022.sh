@@ -347,8 +347,7 @@ install_service() {
     cat > /etc/systemd/system/ss-rust.service << EOF
 [Unit]
 Description=Shadowsocks Rust Service
-After=network-online.target
-Wants=network-online.target systemd-networkd-wait-online.service
+After=network.target
 
 [Service]
 Type=simple
@@ -377,10 +376,14 @@ install_dependencies() {
     
     if [[ ${OS_TYPE} == "centos" ]]; then
         yum update -y
-        yum install -y jq gzip wget curl unzip xz openssl qrencode tar
+        # 增加了 iptables-services
+        yum install -y jq gzip wget curl unzip xz openssl qrencode tar iptables-services
+        systemctl enable iptables
     else
         apt-get update
-        apt-get install -y jq gzip wget curl unzip xz-utils openssl qrencode tar
+        # 增加了 iptables-persistent 和 netfilter-persistent
+        DEBIAN_FRONTEND=noninteractive apt-get install -y jq gzip wget curl unzip xz-utils openssl qrencode tar iptables-persistent netfilter-persistent
+        systemctl enable netfilter-persistent
     fi
     
     # 设置时区
@@ -429,36 +432,44 @@ check_firewall() {
     local port=$1
     echo -e "${INFO} 检查防火墙配置..."
     
-    # 检查 UFW
+    # 1. 检查并配置 firewalld (CentOS/Alma/Rocky 默认)
+    if command -v firewall-cmd >/dev/null 2>&1 && systemctl is-active firewalld >/dev/null 2>&1; then
+        echo -e "${INFO} 检测到 firewalld 防火墙..."
+        firewall-cmd --permanent --add-port=${port}/tcp >/dev/null 2>&1
+        firewall-cmd --permanent --add-port=${port}/udp >/dev/null 2>&1
+        firewall-cmd --reload >/dev/null 2>&1
+        echo -e "${SUCCESS} firewalld 端口开放并持久化完成！"
+        return 0
+    fi
+
+    # 2. 检查并配置 UFW (Ubuntu/Debian 默认)
     if command -v ufw >/dev/null 2>&1; then
-        echo -e "${INFO} 检测到 UFW 防火墙..."
         if ufw status | grep -qw active; then
-            echo -e "${INFO} 正在将端口 ${port} 加入 UFW 规则..."
-            ufw allow ${port}/tcp
-            ufw allow ${port}/udp
-            echo -e "${SUCCESS} UFW 端口开放完成！"
+            echo -e "${INFO} 检测到 UFW 防火墙..."
+            ufw allow ${port}/tcp >/dev/null 2>&1
+            ufw allow ${port}/udp >/dev/null 2>&1
+            echo -e "${SUCCESS} UFW 端口开放完成！(UFW自动持久化)"
+            return 0
         fi
     fi
     
-    # 检查 iptables
+    # 3. 检查并配置 iptables (备用方案)
     if command -v iptables >/dev/null 2>&1; then
         echo -e "${INFO} 检测到 iptables 防火墙..."
-        echo -e "${INFO} 正在将端口 ${port} 加入 iptables 规则..."
         iptables -I INPUT -p tcp --dport ${port} -j ACCEPT
         iptables -I INPUT -p udp --dport ${port} -j ACCEPT
-        echo -e "${SUCCESS} iptables 端口开放完成！"
         
-	# 保存 iptables 规则
-        if [[ ${OS_TYPE} == "centos" ]]; then
-            # 修复 CentOS7+ 中 service iptables save 报错的问题
-            if [[ -d "/etc/sysconfig" ]]; then
-                iptables-save > /etc/sysconfig/iptables
-            else
-                iptables-save > /etc/iptables.rules
-            fi
+        # 尝试使用各种方式持久化 iptables 规则
+        if command -v netfilter-persistent >/dev/null 2>&1; then
+            netfilter-persistent save >/dev/null 2>&1
+        elif command -v service >/dev/null 2>&1 && systemctl is-active iptables >/dev/null 2>&1; then
+            service iptables save >/dev/null 2>&1
         else
-            iptables-save > /etc/iptables.rules
+            mkdir -p /etc/iptables
+            iptables-save > /etc/iptables/rules.v4 2>/dev/null || true
+            iptables-save > /etc/sysconfig/iptables 2>/dev/null || true
         fi
+        echo -e "${SUCCESS} iptables 端口开放并尝试保存完成！"
     fi
 }
 
@@ -619,7 +630,7 @@ set_tfo() {
     read -e -p "(默认：2)：" tfo_choice
     [[ -z "${tfo_choice}" ]] && tfo_choice="2"
     
-    if [[ ${tfo_choice} == "2" ]]; then
+    if [[ ${tfo_choice} == "1" ]]; then
         SS_TFO="true"
     else
         SS_TFO="false"
