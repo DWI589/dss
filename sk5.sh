@@ -1,14 +1,14 @@
 #!/bin/bash
 
 #=================================================
-#	SOCKS5 代理自动安装与管理综合脚本 (纯净输出版)
+#	SOCKS5 自动映射版 (Xray v1.8.10) - 修复UDP路由与格式
 #=================================================
 
 # ----------------- 1. 安装 SOCKS5 代理 -----------------
 install_socks5() {
     clear
     echo "====================================="
-	echo "       开始安装 SOCKS5 代理服务      "
+    echo "       开始安装 SOCKS5 代理服务      "
     echo "====================================="
     
     echo "请输入socks用户名 (直接回车默认: dwi668):"
@@ -29,63 +29,60 @@ install_socks5() {
     iptables -X
     iptables-save >/dev/null 2>&1
 
-    # 获取本机所有IP地址
-    ips=($(hostname -I))
-
-    # 安装 unzip 工具
+    # 安装 unzip 和 curl 工具
     if command -v yum >/dev/null 2>&1; then
-        yum install -y unzip || { echo "unzip 安装失败"; exit 1; }
+        yum install -y unzip curl || { echo "unzip/curl 安装失败"; exit 1; }
     elif command -v apt-get >/dev/null 2>&1; then
-        apt-get update && apt-get install -y unzip || { echo "unzip 安装失败"; exit 1; }
+        apt-get update && apt-get install -y unzip curl || { echo "unzip/curl 安装失败"; exit 1; }
     elif command -v dnf >/dev/null 2>&1; then
-        dnf install -y unzip || { echo "unzip 安装失败"; exit 1; }
+        dnf install -y unzip curl || { echo "unzip/curl 安装失败"; exit 1; }
     else
         echo "未找到支持的包管理器 (yum/apt-get/dnf)"
         exit 1
     fi
 
-# Xray 安装 v1.8.10
-XRAY_VERSION="v1.8.10"
-XRAY_FILE="Xray-linux-64.zip"
-XRAY_PATH="/root/${XRAY_FILE}"
+    # Xray 安装 v1.8.10
+    XRAY_VERSION="v1.8.10"
+    XRAY_FILE="Xray-linux-64.zip"
+    XRAY_PATH="/root/${XRAY_FILE}"
 
-if [ ! -f "${XRAY_PATH}" ]; then
-    echo "开始下载 Xray ${XRAY_VERSION}..."
+    if [ ! -f "${XRAY_PATH}" ]; then
+        echo "开始下载 Xray ${XRAY_VERSION}..."
 
-    URL1="https://github.com/XTLS/Xray-core/releases/download/${XRAY_VERSION}/${XRAY_FILE}"
-    URL2="https://ghproxy.com/${URL1}"
+        URL1="https://github.com/XTLS/Xray-core/releases/download/${XRAY_VERSION}/${XRAY_FILE}"
+        URL2="https://ghproxy.com/${URL1}"
 
-    wget -c -O "${XRAY_PATH}" "$URL1" \
-    || wget -c -O "${XRAY_PATH}" "$URL2" \
-    || { echo "所有下载源失败"; exit 1; }
+        wget -c -O "${XRAY_PATH}" "$URL1" \
+        || wget -c -O "${XRAY_PATH}" "$URL2" \
+        || { echo "所有下载源失败"; exit 1; }
 
-else
-    echo "/root 目录下已有 ${XRAY_FILE}，跳过下载步骤"
-fi
+    else
+        echo "/root 目录下已有 ${XRAY_FILE}，跳过下载步骤"
+    fi
 
-# 校验文件是否正常
-if [ ! -s "${XRAY_PATH}" ]; then
-    echo "文件为空或损坏，删除重试"
-    rm -f "${XRAY_PATH}"
-    exit 1
-fi
+    # 校验文件是否正常
+    if [ ! -s "${XRAY_PATH}" ]; then
+        echo "文件为空或损坏，删除重试"
+        rm -f "${XRAY_PATH}"
+        exit 1
+    fi
 
-# 创建 Xray 目录（如果不存在）
-if [ ! -d "/root/e1" ]; then
-    mkdir -p /root/e1 || { echo "创建目录 /root/e1 失败"; exit 1; }
-fi
+    # 创建 Xray 目录（如果不存在）
+    if [ ! -d "/root/e1" ]; then
+        mkdir -p /root/e1 || { echo "创建目录 /root/e1 失败"; exit 1; }
+    fi
 
-# 解压文件到 /root/e1 目录
-unzip -o "${XRAY_PATH}" -d /root/e1/ >/dev/null 2>&1 \
-|| { echo "解压失败"; exit 1; }
+    # 解压文件到 /root/e1 目录
+    unzip -o "${XRAY_PATH}" -d /root/e1/ >/dev/null 2>&1 \
+    || { echo "解压失败"; exit 1; }
 
-# 检查是否解压成功
-if [ -f "/root/e1/xray" ]; then
-    echo "解压成功，文件存在"
-else
-    echo "解压失败或文件不存在"
-    exit 1
-fi
+    # 检查是否解压成功
+    if [ -f "/root/e1/xray" ]; then
+        echo "解压成功，文件存在"
+    else
+        echo "解压失败或文件不存在"
+        exit 1
+    fi
 
     # 设置 xray 文件的可执行权限
     chmod +x /root/e1/xray
@@ -97,34 +94,47 @@ fi
     # 创建 /root/ip 目录（如果不存在）
     mkdir -p /root/ip
 
-    # 获取第一个IP地址
-    first_ip=$(hostname -I | awk '{print $1}')
-
-    # 创建信息文本文件，格式：用户名_密码_IP地址.txt
-    filename="/root/ip/${socks_user}_${socks_pass}_${first_ip}.txt"
+    # 创建信息文本文件，格式：用户名_密码_nodes.txt
+    filename="/root/ip/${socks_user}_${socks_pass}_nodes.txt"
     > "$filename"
 
-    # 声明一个数组用于存放所有随机生成的端口，供防火墙使用
     generated_ports=()
+    node_count=0
 
-    # 循环为每个IP分配端口并配置Xray
-    for ((i = 0; i < ${#ips[@]}; i++)); do
-        # 生成 10666-38888 之间的随机端口
-        current_port=$(shuf -i 10666-38888 -n 1)
-        generated_ports+=($current_port)
+    echo "-------------------------------------"
+    echo "正在自动探测并映射内网与公网IP关系，请稍候..."
+    
+    # 获取本机所有有效 IPv4 地址
+    ips=$(ip -4 addr | grep inet | awk '{print $2}' | cut -d/ -f1)
 
-        # 追加配置到 serve.toml 文件
-        cat <<EOF >> /etc/xray/serve.toml
+    # 循环遍历并自动配对 IP
+    for current_in_ip in $ips; do
+        # 跳过本地回环地址
+        [[ $current_in_ip == "127.0.0.1" ]] && continue
+
+        # 强制使用指定内网IP出网，获取对应的公网IP
+        show_pub_ip=$(curl -s --interface "$current_in_ip" ifconfig.me --max-time 5)
+
+        # 如果成功获取到公网IP，则生成该节点的配置
+        if [[ -n "$show_pub_ip" ]]; then
+            node_count=$((node_count+1))
+            # 生成 10666-38888 之间的随机端口
+            current_port=$(shuf -i 10666-38888 -n 1)
+            generated_ports+=($current_port)
+
+            # 追加配置到 serve.toml 文件 
+            # 核心修复点：listen 改为严格绑定当前的内网 IP，配合 sendThrough 彻底解决辅助网卡 UDP 串台问题
+            cat <<EOF >> /etc/xray/serve.toml
 [[inbounds]]
-listen = "${ips[i]}"
+listen = "${current_in_ip}"
 port = $current_port
 protocol = "socks"
-tag = "$((i+1))"
+tag = "in_${node_count}"
 
 [inbounds.settings]
 auth = "password"
 udp = true
-ip = "${ips[i]}"
+ip = "${show_pub_ip}"
 
 [[inbounds.settings.accounts]]
 user = "$socks_user"
@@ -132,18 +142,24 @@ pass = "$socks_pass"
 
 [[routing.rules]]
 type = "field"
-inboundTag = "$((i+1))"
-outboundTag = "$((i+1))"
+inboundTag = "in_${node_count}"
+outboundTag = "out_${node_count}"
 
 [[outbounds]]
-sendThrough = "${ips[i]}"
+sendThrough = "${current_in_ip}"
 protocol = "freedom"
-tag = "$((i+1))"
+tag = "out_${node_count}"
 EOF
-
-        # 追加信息到文本文件（格式：IP:端口:用户名:密码）
-        echo "${ips[i]}:$current_port:$socks_user:$socks_pass" >> "$filename"
+            # 追加信息到文本文件（纯净格式：IP/端口/用户名/密码）
+            echo "${show_pub_ip}/${current_port}/${socks_user}/${socks_pass}" >> "$filename"
+        fi
     done
+
+    # 如果没有任何IP映射成功，容错退出
+    if [ $node_count -eq 0 ]; then
+        echo "⚠️ 警告：无法自动获取任何公网IP，请检查服务器外网连接！"
+        exit 1
+    fi
 
     # 配置防火墙规则
     configure_firewall() {
@@ -195,6 +211,7 @@ ExecStart=/root/e1/xray -c /etc/xray/serve.toml
 ExecStop=/bin/kill -s QUIT \$MAINPID
 Restart=always
 RestartSec=15s
+LimitNOFILE=512000
 
 [Install]
 WantedBy=multi-user.target
@@ -214,11 +231,10 @@ EOF
     echo "        🎉 代理安装与配置完成 🎉       "
     echo "====================================="
     
-    while IFS=':' read -r ip port user pass; do
-        if [ -n "$ip" ]; then
-            echo "$ip:$port:$user:$pass"
-        fi
-    done < "$filename"
+    # 直接输出文件内容，保证完美的 IP/端口/用户名/密码 格式
+    if [ -f "$filename" ]; then
+        cat "$filename"
+    fi
 
     echo "====================================="
     
@@ -283,7 +299,6 @@ uninstall_socks5() {
     echo "====================================="
     echo "        🎉 SOCKS5 代理卸载完成 🎉      "
     echo "====================================="
-    echo "说明：BBR加速属于内核级优化，已保留在系统内。"
     echo "所有代理进程、配置和端口规则已彻底清除。"
     echo "====================================="
     
@@ -304,11 +319,8 @@ view_info() {
         if [ -e "${files[0]}" ]; then
             has_file=true
             for file in "${files[@]}"; do
-                while IFS=':' read -r ip port user pass; do
-                    if [ -n "$ip" ]; then
-                        echo "$ip:$port:$user:$pass"
-                    fi
-                done < "$file"
+                # 直接输出文件内容，保留精确格式
+                cat "$file"
             done
         fi
     fi
