@@ -15,6 +15,7 @@ bash <(curl -L -s ss.jinqians.com)
 ```bash
 wget -N --no-check-certificate https://raw.githubusercontent.com/DWI589/ss-2022.sh/main/ss-2022.sh && chmod +x ss-2022.sh && ./ss-2022.sh
 
+2
 curl -Ss https://raw.githubusercontent.com/DWI589/dss/tree/main/ss.sh | sudo bash
 ```
 
