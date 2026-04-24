@@ -473,7 +473,7 @@ check_firewall() {
 # 生成随机端口
 generate_random_port() {
     local min_port=10666
-    local max_port=38888
+    local max_port=58888
     echo $(shuf -i ${min_port}-${max_port} -n 1)
 }
 
