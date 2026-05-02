@@ -740,7 +740,7 @@ EOF
     case $m_choice in
         1) MULTI_METHOD="aes-128-gcm" ;;
         3) MULTI_METHOD="chacha20-ietf-poly1305" ;;
-        *) MULTI_METHOD="aes-256-gcm" ;;
+        *) MULTI_METHOD="aes-128-gcm" ;;
     esac
 
     # 6. 初始化输出文件
